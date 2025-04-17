@@ -13,26 +13,30 @@ def load_data():
     response = requests.get(API_URL)
     data = response.json()
     df = pd.json_normalize(data)
-    st.write("Available columns:", df.columns.tolist())  # 🔍 Show all column names for debugging
+
+    # Rename to match what we need for mapping
+    df = df.rename(columns={
+        "latitude_decimal": "lat",
+        "longitude_decimal": "lon",
+        "call_sign": "Call Sign",
+        "call_sign_licensee_name": "Licensee"
+    })
+
+    # Drop rows without valid coordinates
+    df = df.dropna(subset=["lat", "lon"])
+    df["lat"] = df["lat"].astype(float)
+    df["lon"] = df["lon"].astype(float)
+
     return df
 
 df = load_data()
 
-# Only keep rows with valid coordinates
-if "latitude" in df.columns and "longitude" in df.columns:
-    df = df.dropna(subset=["latitude", "longitude"])
-    df["latitude"] = df["latitude"].astype(float)
-    df["longitude"] = df["longitude"].astype(float)
-else:
-    st.error("Latitude/Longitude not available in data.")
-    st.stop()
+st.write(f"Showing **{len(df)}** tower records")
 
-# Optional filter
-company_col = "company" if "company" in df.columns else None
-if company_col:
-    company_filter = st.text_input("Filter by Company:")
-    if company_filter:
-        df = df[df[company_col].str.contains(company_filter, case=False, na=False)]
+# Optional filter by Licensee
+licensee_filter = st.text_input("Filter by Licensee (company name):")
+if licensee_filter:
+    df = df[df["Licensee"].str.contains(licensee_filter, case=False, na=False)]
 
 # Show map
 st.pydeck_chart(pdk.Deck(
@@ -46,7 +50,7 @@ st.pydeck_chart(pdk.Deck(
         pdk.Layer(
             "ScatterplotLayer",
             data=df,
-            get_position='[longitude, latitude]',
+            get_position='[lon, lat]',
             get_radius=1000,
             get_fill_color=[0, 100, 255, 100],
             pickable=True,
@@ -54,5 +58,6 @@ st.pydeck_chart(pdk.Deck(
     ],
 ))
 
-st.write("📄 Data preview:")
-st.dataframe(df)
+# Optional table
+with st.expander("🔎 Raw Data Table"):
+    st.dataframe(df)
