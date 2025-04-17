@@ -3,29 +3,38 @@ import pandas as pd
 import requests
 import pydeck as pdk
 
-st.set_page_config(page_title="US Cell Towers Map", layout="wide")
-st.title("📡 US Cell Towers (Live API Sample)")
+st.set_page_config(page_title="FCC Cell Towers", layout="wide")
+st.title("📡 FCC Cell Towers Map")
 
 @st.cache_data
 def load_data():
-    url = "https://opendata.fcc.gov/resource/eers-7wdv.json?$limit=1000"
+    url = "https://opendata.fcc.gov/resource/h7da-s4u2.json?$limit=1000"
     response = requests.get(url)
     data = response.json()
     df = pd.json_normalize(data)
-    df = df[["owner", "latitude", "longitude", "structure_type", "registration_number"]]
-    df = df.dropna(subset=["latitude", "longitude"])
-    df["latitude"] = df["latitude"].astype(float)
-    df["longitude"] = df["longitude"].astype(float)
+
+    # Rename and clean
+    df = df.rename(columns={
+        "latitude": "lat",
+        "longitude": "lon",
+        "company": "Company",
+        "market": "Market",
+        "channel": "Channel",
+        "callsign": "Callsign"
+    })
+
+    df = df[["lat", "lon", "Company", "Market", "Channel", "Callsign"]]
+    df = df.dropna(subset=["lat", "lon"])
+    df["lat"] = df["lat"].astype(float)
+    df["lon"] = df["lon"].astype(float)
     return df
 
 df = load_data()
 
-st.write(f"Showing **{len(df)}** registered tower locations (sample)")
-
-# Optional filter by owner
-owner_filter = st.text_input("Filter by Owner Name (e.g. Verizon, Crown Castle):")
-if owner_filter:
-    df = df[df["owner"].str.contains(owner_filter, case=False, na=False)]
+# Optional company filter
+company_filter = st.text_input("Filter by Company (e.g. AT&T, Verizon):")
+if company_filter:
+    df = df[df["Company"].str.contains(company_filter, case=False, na=False)]
 
 # Show map
 st.pydeck_chart(pdk.Deck(
@@ -40,10 +49,14 @@ st.pydeck_chart(pdk.Deck(
         pdk.Layer(
             "ScatterplotLayer",
             data=df,
-            get_position='[longitude, latitude]',
+            get_position='[lon, lat]',
             get_radius=1000,
-            get_fill_color=[0, 0, 255, 80],
+            get_fill_color=[0, 100, 255, 100],
             pickable=True,
         )
     ],
 ))
+
+# Optional table preview
+with st.expander("See Raw Data Table"):
+    st.dataframe(df)
