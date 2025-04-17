@@ -14,15 +14,18 @@ def load_data():
     data = response.json()
     df = pd.json_normalize(data)
 
-    # Rename to match what we need for mapping
+    # Rename relevant columns
     df = df.rename(columns={
         "latitude_decimal": "lat",
         "longitude_decimal": "lon",
+        "call_sign_licensee_name": "Owner",
         "call_sign": "Call Sign",
-        "call_sign_licensee_name": "Licensee"
+        "city": "City",
+        "state": "State",
+        "county": "County"
     })
 
-    # Drop rows without valid coordinates
+    # Drop rows without coordinates
     df = df.dropna(subset=["lat", "lon"])
     df["lat"] = df["lat"].astype(float)
     df["lon"] = df["lon"].astype(float)
@@ -31,14 +34,12 @@ def load_data():
 
 df = load_data()
 
-st.write(f"Showing **{len(df)}** tower records")
+# Optional filter
+owner_filter = st.text_input("Filter by Owner:")
+if owner_filter:
+    df = df[df["Owner"].str.contains(owner_filter, case=False, na=False)]
 
-# Optional filter by Licensee
-licensee_filter = st.text_input("Filter by Licensee (company name):")
-if licensee_filter:
-    df = df[df["Licensee"].str.contains(licensee_filter, case=False, na=False)]
-
-# Show map
+# Show map with tooltips
 st.pydeck_chart(pdk.Deck(
     map_style="mapbox://styles/mapbox/light-v9",
     initial_view_state=pdk.ViewState(
@@ -52,12 +53,24 @@ st.pydeck_chart(pdk.Deck(
             data=df,
             get_position='[lon, lat]',
             get_radius=1000,
-            get_fill_color=[0, 100, 255, 100],
+            get_fill_color=[0, 100, 255, 120],
             pickable=True,
         )
     ],
+    tooltip={
+        "html": """
+        <b>Owner:</b> {Owner}<br/>
+        <b>Call Sign:</b> {Call Sign}<br/>
+        <b>City:</b> {City}<br/>
+        <b>County:</b> {County}<br/>
+        <b>State:</b> {State}
+        """,
+        "style": {
+            "backgroundColor": "steelblue",
+            "color": "white"
+        }
+    }
 ))
 
-# Optional table
-with st.expander("🔎 Raw Data Table"):
+with st.expander("📄 View Full Table"):
     st.dataframe(df)
